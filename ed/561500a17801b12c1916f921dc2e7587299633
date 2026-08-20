@@ -1,0 +1,25 @@
+plugins/devin/plugin.js
+  s_b4a4e642242adc::t_bbd08378111797 488-496
+  s_b4a4e642242adc::t_070379fc875d99 273
+  s_b4a4e642242adc::t_02c75c155a520f 174-189
+plugins/devin/plugin.test.js
+  s_b4a4e642242adc::t_43950a19ae6fd5 160-210
+src-tauri/src/plugin_engine/host_api.rs
+  s_b4a4e642242adc::t_746085fbb8a833 19,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ed561500a17801b12c1916f921dc2e7587299633",
+  "prompts": {},
+  "sessions": {
+    "s_b4a4e642242adc": {
+      "agent_id": {
+        "tool": "windsurf",
+        "id": "rotated-attic",
+        "model": "unknown"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
