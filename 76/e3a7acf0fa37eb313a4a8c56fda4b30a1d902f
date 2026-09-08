@@ -1,0 +1,41 @@
+src/components/app/app-shell.tsx
+  s_3aa76148450bf8::t_d9bf699fe9f686 15-21,93-101
+src-tauri/src/panel/other.rs
+  s_3aa76148450bf8::t_07e5658cb2d48c 7-14,17,31-33,42-45,78-81
+src-tauri/src/linux_webview.rs
+  s_3aa76148450bf8::t_4373be0a2c04a2 1-44
+src/App.test.tsx
+  s_ad7c4a967ac247::t_858aeeb40f2a1b 467-472
+  s_3aa76148450bf8::t_098cca59277145 480-487
+  s_3aa76148450bf8::t_de21c801ed809a 473-479,488-490
+src-tauri/src/lib.rs
+  s_3aa76148450bf8::t_d9c730e0a28e59 13,886-887
+src-tauri/capabilities/default.json
+  s_ad7c4a967ac247::t_54c69b6eab210c 11
+src-tauri/src/tray.rs
+  s_3aa76148450bf8::t_6e137c3dcf3e25 70-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "76e3a7acf0fa37eb313a4a8c56fda4b30a1d902f",
+  "prompts": {},
+  "sessions": {
+    "s_3aa76148450bf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01a06464-92da-7813-b6bf-4f19578f1c50",
+        "model": "unknown"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    },
+    "s_ad7c4a967ac247": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a05ce5-63ce-79c3-aeb7-7e3f0ff44568",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
