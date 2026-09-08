@@ -67,9 +67,10 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
         _ => {}
     });
 
-    TrayIconBuilder::with_id("tray")
-        .icon(icon)
-        .icon_as_template(true)
+    let builder = TrayIconBuilder::with_id("tray").icon(icon);
+    #[cfg(target_os = "macos")]
+    let builder = builder.icon_as_template(true);
+    builder
         .tooltip("UsagePal")
         .on_tray_icon_event(|tray, event| {
             let app_handle = tray.app_handle();

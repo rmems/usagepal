@@ -464,6 +464,30 @@ describe("App", () => {
     expect(await screen.findByText("Alpha")).toBeInTheDocument()
   })
 
+  it("provides a drag region for moving the main panel", async () => {
+    render(<App />)
+
+    expect(await screen.findByLabelText("Drag to move UsagePal")).toHaveAttribute("data-tauri-drag-region")
+  })
+
+  it("does not show a window drag handle on macOS", async () => {
+    const platformDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, "platform")
+    Object.defineProperty(Navigator.prototype, "platform", {
+      configurable: true,
+      get: () => "MacIntel",
+    })
+
+    try {
+      render(<App />)
+      expect(await screen.findByText("Alpha")).toBeInTheDocument()
+      expect(screen.queryByLabelText("Drag to move UsagePal")).not.toBeInTheDocument()
+    } finally {
+      if (platformDescriptor) {
+        Object.defineProperty(Navigator.prototype, "platform", platformDescriptor)
+      }
+    }
+  })
+
   it("renders onboarding app on setup route", async () => {
     window.location.hash = "#/setup"
 

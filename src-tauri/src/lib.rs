@@ -10,6 +10,7 @@ mod opencode_go_key;
 mod openrouter_key;
 mod panel;
 mod keylight;
+mod linux_webview;
 // `pub` only so the `ccusage_differential` integration test (an external crate)
 // can reach `plugin_engine::ccusage::query_daily`, the vendored loader's
 // entrypoint. `#[doc(hidden)]` says what that `pub` means: this is not public
@@ -882,6 +883,8 @@ fn list_plugins(state: tauri::State<'_, Mutex<AppState>>) -> Vec<PluginMeta> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    linux_webview::apply_linux_webview_workaround();
+
     let specta_builder = tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
             init_panel,

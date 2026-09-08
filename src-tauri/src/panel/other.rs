@@ -4,10 +4,17 @@ fn main_window(app_handle: &AppHandle) -> Option<WebviewWindow> {
     app_handle.get_webview_window("main")
 }
 
+fn present(window: &WebviewWindow) -> tauri::Result<()> {
+    window.set_always_on_top(true)?;
+    let _ = window.set_skip_taskbar(true);
+    window.show()?;
+    window.set_focus()?;
+    Ok(())
+}
+
 pub fn init(app_handle: &tauri::AppHandle) -> tauri::Result<()> {
     if let Some(window) = main_window(app_handle) {
-        window.show()?;
-        window.set_focus()?;
+        present(&window)?;
     }
     Ok(())
 }
@@ -21,8 +28,9 @@ pub fn toggle_panel(app_handle: &AppHandle) {
             let _ = window.hide();
         }
         _ => {
-            let _ = window.show();
-            let _ = window.set_focus();
+            if let Err(error) = present(&window) {
+                log::error!("failed to show panel: {error}");
+            }
         }
     }
 }
@@ -31,8 +39,10 @@ pub fn show_panel_from_tray(app_handle: &AppHandle, view: &str) {
     let Some(window) = main_window(app_handle) else {
         return;
     };
-    let _ = window.show();
-    let _ = window.set_focus();
+    if let Err(error) = present(&window) {
+        log::error!("failed to show panel from tray: {error}");
+        return;
+    }
     if let Err(error) = app_handle.emit("tray:navigate", view) {
         log::error!("failed to emit tray:navigate {view}: {error}");
     }
@@ -65,8 +75,10 @@ pub fn toggle_panel_at_tray_rect(
             let _ = window.hide();
         }
         _ => {
-            let _ = window.show();
-            let _ = window.set_focus();
+            if let Err(error) = present(&window) {
+                log::error!("failed to show panel at tray: {error}");
+                return;
+            }
             if let Err(error) = app_handle.emit("tray:navigate", "home") {
                 log::error!("failed to emit tray:navigate home: {error}");
             }

@@ -12,6 +12,13 @@ import { useAppUiStore } from "@/stores/app-ui-store"
 
 const ARROW_OVERHEAD_PX = 37
 
+export function showWindowDragHandle(
+  platform = typeof navigator === "undefined" ? "" : navigator.platform,
+  userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent,
+): boolean {
+  return !/mac/i.test(`${platform} ${userAgent}`)
+}
+
 type AppShellProps = {
   onRefreshAll: () => void
   navPlugins: NavPlugin[]
@@ -83,6 +90,15 @@ export function AppShell({
         className="relative bg-card rounded-xl overflow-hidden select-none w-full border shadow-lg flex flex-col"
         style={maxPanelHeightPx ? { maxHeight: `${maxPanelHeightPx - ARROW_OVERHEAD_PX}px` } : undefined}
       >
+        {showWindowDragHandle() ? (
+          <div
+            data-tauri-drag-region
+            aria-label="Drag to move UsagePal"
+            className="flex h-7 shrink-0 cursor-move items-center border-b px-3 text-xs text-muted-foreground"
+          >
+            Drag To Move
+          </div>
+        ) : null}
         <div className="flex flex-1 min-h-0 flex-row">
           <SideNav
             activeView={activeView}
