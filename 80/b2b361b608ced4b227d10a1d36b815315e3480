@@ -1,0 +1,68 @@
+.github/workflows/publish.yml
+  s_f120c535a0ba1b::t_c2d13e691abb64 503,507
+  s_f120c535a0ba1b::t_188e5be001365d 558-560,565
+  s_f120c535a0ba1b::t_263f1be0556cc3 255-259,262-409,415,419
+  s_f120c535a0ba1b::t_ec745fa94bccf6 446,453-466,468-480,482-483
+  s_f120c535a0ba1b::t_2c71a496930ada 260-261
+plugins/cursor/plugin.js
+  s_f120c535a0ba1b::t_f376e65b3e1960 19-31
+  s_f120c535a0ba1b::t_be5af02fdc6f88 1128
+  s_f120c535a0ba1b::t_0ce2202e83f052 883
+  s_f120c535a0ba1b::t_060a03aa4d28db 1373-1374
+  s_f120c535a0ba1b::t_61e6d301447d06 635
+  s_f120c535a0ba1b::t_34c73fa5d30e39 864,866
+  s_f120c535a0ba1b::t_61594fa0b96bb4 1071,1093
+  s_f120c535a0ba1b::t_287edc37193f8e 2-7
+  s_f120c535a0ba1b::t_87c9090520f8d3 659
+.agents/skills/release-tauri/SKILL.md
+  s_f120c535a0ba1b::t_520c7aa92ca7cb 77
+.github/workflows/ci.yml
+  s_f120c535a0ba1b::t_dda36cac75453a 28-49
+  s_f120c535a0ba1b::t_4d0cb869393515 50
+README.md
+  s_f120c535a0ba1b::t_55105e016d607c 22,24-27
+  s_f120c535a0ba1b::t_f2f166093f0bb8 50
+  s_f120c535a0ba1b::t_1739a1a0a6d138 118
+  s_f120c535a0ba1b::t_d032f19abf0b0f 117
+AGENTS.md
+  s_f120c535a0ba1b::t_c92323c4dc37c9 11,13-20
+  s_7aa09804942eca::t_5c5a0a37f77495 129-141
+  s_7aa09804942eca::t_5970f942ac75b3 3
+plugins/cursor/plugin.test.js
+  s_f120c535a0ba1b::t_429b694f85bd54 29-73
+src-tauri/src/accounts.rs
+  s_f120c535a0ba1b::t_c3662abf31753f 271-284,288,290-292,294,297-311,313-324
+plugins/cursor/plugin.json
+  s_f120c535a0ba1b::t_dc002b1712a1e6 9-13
+src-tauri/tauri.linux.conf.json
+  s_f120c535a0ba1b::t_4e2226b47d3a4d 1-5
+docs/getting-started.md
+  s_f120c535a0ba1b::t_6db0e9425bc5e9 15-16
+docs/providers/cursor.md
+  s_f120c535a0ba1b::t_fd9e07bd840ad1 160,164-168,171
+  s_f120c535a0ba1b::t_5134c2b2b74e1e 183,185,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "80b2b361b608ced4b227d10a1d36b815315e3480",
+  "prompts": {},
+  "sessions": {
+    "s_7aa09804942eca": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "23eeb041-e34a-4947-a26b-df99c13265ae",
+        "model": "cursor-grok-4.6-medium"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    },
+    "s_f120c535a0ba1b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a5061d2b-6bb8-4e4e-8aeb-de810394363c",
+        "model": "composer-2.5"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
