@@ -157,14 +157,18 @@ Returns subscription and Stripe customer balance metadata from `cursor.com`.
 UsagePal reads Cursor auth in this order:
 
 1. **Cursor Desktop SQLite** (preferred)
-2. **Cursor CLI keychain** (fallback)
+2. **Cursor CLI keychain** (macOS fallback)
 
 #### 1) Cursor Desktop SQLite (preferred)
 
-Path: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
+| Platform | Path |
+|---|---|
+| macOS | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
+| Linux | `~/.config/Cursor/User/globalStorage/state.vscdb` |
+| Windows | `~/AppData/Roaming/Cursor/User/globalStorage/state.vscdb` |
 
 ```bash
-sqlite3 ~/Library/Application\ Support/Cursor/User/globalStorage/state.vscdb \
+sqlite3 ~/.config/Cursor/User/globalStorage/state.vscdb \
   "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'"
 ```
 
@@ -176,9 +180,9 @@ sqlite3 ~/Library/Application\ Support/Cursor/User/globalStorage/state.vscdb \
 | `cursorAuth/stripeMembershipType` | Plan tier (e.g. `pro`, `ultra`) |
 | `cursorAuth/stripeSubscriptionStatus` | Subscription status |
 
-#### 2) Cursor CLI keychain (fallback)
+#### 2) Cursor CLI keychain (macOS fallback)
 
-UsagePal reads Cursor CLI tokens from keychain:
+On macOS, UsagePal can also read Cursor CLI tokens from keychain:
 
 - `cursor-access-token`
 - `cursor-refresh-token`
@@ -188,6 +192,8 @@ To initialize CLI auth:
 ```bash
 agent login
 ```
+
+On Linux and Windows, sign in through the Cursor desktop app. CLI keychain fallback is not available there yet.
 
 ### Token Refresh
 

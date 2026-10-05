@@ -268,27 +268,60 @@ pub fn snapshot_cursor_account(label: String) -> Result<AccountAdded, String> {
     Ok(AccountAdded { account_id })
 }
 
+fn cursor_state_db_path() -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    let path = match std::env::consts::OS {
+        "linux" => home.join(".config/Cursor/User/globalStorage/state.vscdb"),
+        "windows" => home.join("AppData/Roaming/Cursor/User/globalStorage/state.vscdb"),
+        _ => home.join("Library/Application Support/Cursor/User/globalStorage/state.vscdb"),
+    };
+    if path.is_file() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
 /// Read Cursor's access/refresh tokens READ-ONLY from its state.vscdb via `sqlite3`.
 /// Mirrors the shell-out pattern host_api.rs uses for sqlite; never writes.
 fn read_cursor_state_tokens() -> Option<(String, String)> {
-    let db = dirs::home_dir()?
-        .join("Library/Application Support/Cursor/User/globalStorage/state.vscdb");
+    let db = cursor_state_db_path()?;
     let read = |key: &str| -> Option<String> {
-        let out = std::process::Command::new("sqlite3")
-            .arg("-readonly")
+        let sql = format!("SELECT value FROM ItemTable WHERE key = '{key}' LIMIT 1;");
+        let primary = std::process::Command::new("sqlite3")
+            .args(["-readonly", "-json"])
             .arg(&db)
-            .arg(format!("SELECT value FROM ItemTable WHERE key = '{key}' LIMIT 1;"))
+            .arg(&sql)
             .output()
             .ok()?;
-        if !out.status.success() {
-            return None;
+        let parse_json_stdout = |out: &std::process::Output| -> Option<String> {
+            if !out.status.success() {
+                return None;
+            }
+            let text = String::from_utf8_lossy(&out.stdout);
+            let rows: Vec<serde_json::Value> = serde_json::from_str(text.trim()).ok()?;
+            rows.first()
+                .and_then(|row| row.get("value"))
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        if let Some(value) = parse_json_stdout(&primary) {
+            return Some(value);
         }
-        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if s.is_empty() {
-            None
-        } else {
-            Some(s)
-        }
+        let encoded = db
+            .to_string_lossy()
+            .replace('%', "%25")
+            .replace(' ', "%20")
+            .replace('#', "%23")
+            .replace('?', "%3F");
+        let uri = format!("file:{}?immutable=1", encoded);
+        let fallback = std::process::Command::new("sqlite3")
+            .args(["-readonly", "-json", &uri, &sql])
+            .output()
+            .ok()?;
+        parse_json_stdout(&fallback)
     };
     let access = read("cursorAuth/accessToken")?;
     let refresh = read("cursorAuth/refreshToken").unwrap_or_default();

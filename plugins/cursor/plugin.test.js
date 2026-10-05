@@ -26,6 +26,51 @@ describe("cursor plugin", () => {
     expect(() => plugin.probe(ctx)).toThrow("Not logged in")
   })
 
+  it("resolves Cursor state.vscdb per host platform", async () => {
+    const plugin = await loadPlugin()
+    expect(plugin.__test.stateDbPath("macos")).toBe(
+      "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+    )
+    expect(plugin.__test.stateDbPath("linux")).toBe(
+      "~/.config/Cursor/User/globalStorage/state.vscdb"
+    )
+    expect(plugin.__test.stateDbPath("windows")).toBe(
+      "~/AppData/Roaming/Cursor/User/globalStorage/state.vscdb"
+    )
+    expect(plugin.__test.loginHint({ app: { platform: "linux" } })).toBe(
+      "Sign in via the Cursor app."
+    )
+  })
+
+  it("reads Linux credentials from the XDG config path", async () => {
+    const ctx = makeCtx()
+    ctx.app.platform = "linux"
+    const linuxDb = "~/.config/Cursor/User/globalStorage/state.vscdb"
+    ctx.host.sqlite.query.mockImplementation((db, sql) => {
+      expect(db).toBe(linuxDb)
+      if (String(sql).includes("cursorAuth/accessToken")) {
+        return JSON.stringify([{ value: "linux-token" }])
+      }
+      return JSON.stringify([])
+    })
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify({
+        enabled: true,
+        planUsage: { totalSpend: 1200, limit: 2400 },
+      }),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
+    expect(ctx.host.sqlite.query).toHaveBeenCalledWith(
+      linuxDb,
+      expect.stringContaining("cursorAuth/accessToken")
+    )
+  })
+
   it("loads tokens from keychain when sqlite has none", async () => {
     const ctx = makeCtx()
     ctx.host.sqlite.query.mockReturnValue(JSON.stringify([]))

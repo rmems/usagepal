@@ -252,16 +252,171 @@ jobs:
           printf '%s\n' "$ASSETS" | grep -Eq '\.sig$' || { echo "Missing updater signatures (.sig)"; exit 1; }
           printf '%s\n' "$ASSETS" | grep -Eq '^UsagePal-[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?-${{ matrix.arch }}\.dmg$' || { echo "Missing Lutin DMG for ${{ matrix.arch }}"; exit 1; }
 
+  publish-linux:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install Linux Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            rpm \
+            file
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "latest"
+      - run: bun install
+      - name: Bundle plugins
+        run: bun run bundle:plugins
+      - name: Verify bundled plugins
+        run: |
+          COUNT=$(find src-tauri/resources/bundled_plugins -maxdepth 2 -name plugin.json | wc -l | tr -d ' ')
+          if [[ "$COUNT" -lt 1 ]]; then
+            echo "No bundled plugins found under src-tauri/resources/bundled_plugins."
+            exit 1
+          fi
+
+      - name: Write Keylight config
+        env:
+          KEYLIGHT_SDK_KEY: ${{ secrets.KEYLIGHT_SDK_KEY }}
+        run: |
+          cat > .env <<EOF
+          KEYLIGHT_TENANT=${{ vars.KEYLIGHT_TENANT }}
+          KEYLIGHT_PRODUCT=${{ vars.KEYLIGHT_PRODUCT }}
+          KEYLIGHT_SDK_KEY=$KEYLIGHT_SDK_KEY
+          KEYLIGHT_PUBKEY=${{ vars.KEYLIGHT_PUBKEY }}
+          EOF
+          echo "Wrote .env (tenant=${{ vars.KEYLIGHT_TENANT }} product=${{ vars.KEYLIGHT_PRODUCT }} sdk_key_set=${KEYLIGHT_SDK_KEY:+yes})"
+
+      - name: Validate release tag
+        run: |
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo "Missing RELEASE_TAG (push a v* tag)."
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Invalid RELEASE_TAG: $RELEASE_TAG (expected vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease)"
+            exit 1
+          fi
+
+      - name: Validate app version matches tag
+        run: |
+          TAG_VERSION="${RELEASE_TAG#v}"
+
+          TAURI_CONF_VERSION=$(node -p 'require("./src-tauri/tauri.conf.json").version')
+          CARGO_VERSION=$(awk -F'"' '/^version =/ { print $2; exit }' ./src-tauri/Cargo.toml)
+          PKG_VERSION=$(node -p 'require("./package.json").version')
+
+          if [[ "$TAURI_CONF_VERSION" != "$TAG_VERSION" ]]; then
+            echo "src-tauri/tauri.conf.json version ($TAURI_CONF_VERSION) != tag version ($TAG_VERSION)"
+            exit 1
+          fi
+          if [[ "$CARGO_VERSION" != "$TAG_VERSION" ]]; then
+            echo "src-tauri/Cargo.toml version ($CARGO_VERSION) != tag version ($TAG_VERSION)"
+            exit 1
+          fi
+          if [[ "$PKG_VERSION" != "$TAG_VERSION" ]]; then
+            echo "package.json version ($PKG_VERSION) != tag version ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          awk -v tag="## ${RELEASE_TAG}" '
+            $0 == tag { found = 1; next }
+            found && /^## v/ { exit }
+            found { print }
+          ' CHANGELOG.md | sed '/./,$!d' > release-notes.md
+
+          if [ -s release-notes.md ]; then
+            echo "Using CHANGELOG.md section for ${RELEASE_TAG}."
+          else
+            echo "No CHANGELOG.md section for ${RELEASE_TAG}; falling back to commit-derived notes." >&2
+            PREV_TAG=$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)
+            if [ -n "$PREV_TAG" ]; then RANGE="$PREV_TAG..$RELEASE_TAG"; else RANGE="$RELEASE_TAG"; fi
+
+            subjects() { git log --no-merges --pretty=format:'%s' "$RANGE"; }
+            FEATS=$(subjects | grep -E '^feat(\(.+\))?!?:' || true)
+            FIXES=$(subjects | grep -E '^fix(\(.+\))?!?:' || true)
+            CHORES=$(subjects | grep -vE '^(feat|fix)(\(.+\))?!?:' || true)
+
+            {
+              echo "## What's Changed"
+              echo ""
+              if [ -n "$FEATS" ]; then echo "### Features"; echo "$FEATS" | sed 's/^/- /'; echo ""; fi
+              if [ -n "$FIXES" ]; then echo "### Fixes"; echo "$FIXES" | sed 's/^/- /'; echo ""; fi
+              if [ -n "$CHORES" ]; then echo "### Chores"; echo "$CHORES" | sed 's/^/- /'; echo ""; fi
+              if [ -n "$PREV_TAG" ]; then
+                echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${RELEASE_TAG}"
+              fi
+            } > release-notes.md
+          fi
+
+          cat release-notes.md
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            cat release-notes.md
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: ${{ env.RELEASE_TAG }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          includeUpdaterJson: true
+          args: --bundles deb,rpm,appimage
+
+      - name: Verify Linux release assets uploaded
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ASSETS=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | tr -d '\r')
+
+          printf '%s\n' "$ASSETS" | grep -Eq '\.deb$' || { echo "Missing .deb package"; exit 1; }
+          printf '%s\n' "$ASSETS" | grep -Eq '\.rpm$' || { echo "Missing .rpm package"; exit 1; }
+          printf '%s\n' "$ASSETS" | grep -Ei 'appimage' || { echo "Missing AppImage package"; exit 1; }
+          printf '%s\n' "$ASSETS" | grep -Fxq 'latest.json' || { echo "Missing updater manifest: latest.json"; exit 1; }
+
   # Single-writer repair for the updater manifests. The `publish` matrix uses
   # `tauri-action` in parallel, which claims to merge `latest.json` safely but
   # in practice races: both jobs fetch the old manifest before either uploads,
   # so the last writer clobbers the other's arch. 0.7.74-beta.1 shipped with
   # only darwin-x86_64 for exactly this reason (arm users saw no beta update).
-  # This job runs once after both arch builds, heals a single-arch
+  # This job runs once after macOS and Linux builds, heals a missing-arch
   # `latest.json` if needed, and only then publishes the beta feed serially.
   repair-updater:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: publish
+    needs: [publish, publish-linux]
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.ref_name }}
@@ -288,20 +443,44 @@ jobs:
           tmp = pathlib.Path(os.environ["RUNNER_TEMP"]) / "repair"
           data = json.loads((tmp / "latest.json").read_text())
           plats = set(data.get("platforms", {}).keys())
-          need = {"darwin-aarch64", "darwin-x86_64"}
+          need = {"darwin-aarch64", "darwin-x86_64", "linux-x86_64"}
           missing = need - plats
           if not missing:
               print(f"latest.json OK: {sorted(plats)}")
               sys.exit(0)
           print(f"latest.json missing {sorted(missing)}, found {sorted(plats)} — healing...", file=sys.stderr)
           tag = os.environ["RELEASE_TAG"]
-          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}"
+          repo = os.environ["GITHUB_REPOSITORY"]
+          base = f"https://github.com/{repo}/releases/download/{tag}"
+          listed = subprocess.check_output(
+              ["gh", "release", "view", tag, "--repo", repo, "--json", "assets", "--jq", ".assets[].name"],
+              text=True,
+          )
+          assets = [line.strip() for line in listed.splitlines() if line.strip()]
+
+          def linux_tarball():
+              names = [a for a in assets if a.endswith(".AppImage.tar.gz")]
+              if not names:
+                  raise SystemExit("no AppImage.tar.gz updater artifact on the release")
+              return names[0]
+
           for arch in sorted(missing):
-              art = "UsagePal_aarch64.app.tar.gz.sig" if "aarch64" in arch else "UsagePal_x64.app.tar.gz.sig"
-              url_arch = "UsagePal_aarch64.app.tar.gz" if "aarch64" in arch else "UsagePal_x64.app.tar.gz"
-              subprocess.run(["gh","release","download", tag, "--repo", os.environ["GITHUB_REPOSITORY"], "--pattern", art, "--dir", str(tmp), "--clobber"], check=True)
+              if arch == "darwin-aarch64":
+                  url_arch = "UsagePal_aarch64.app.tar.gz"
+              elif arch == "darwin-x86_64":
+                  url_arch = "UsagePal_x64.app.tar.gz"
+              elif arch == "linux-x86_64":
+                  url_arch = linux_tarball()
+              else:
+                  raise SystemExit(f"unknown platform {arch}")
+              art = url_arch + ".sig"
+              subprocess.run(
+                  ["gh", "release", "download", tag, "--repo", repo, "--pattern", art, "--dir", str(tmp), "--clobber"],
+                  check=True,
+              )
               sig = (tmp / art).read_text().strip()
-              for key in [arch, f"{arch}-app"]:
+              keys = [arch] if arch.startswith("linux-") else [arch, f"{arch}-app"]
+              for key in keys:
                   data["platforms"][key] = {"signature": sig, "url": f"{base}/{url_arch}"}
           (tmp / "latest.json").write_text(json.dumps(data, indent=2) + "\n")
           print(f"healed latest.json now {sorted(data['platforms'].keys())}")
@@ -321,11 +500,11 @@ jobs:
             fi
           fi
           cat "$RUNNER_TEMP/repair/latest.json" | python3 -m json.tool | head -n 60
-          # Final guard: after healing, both arches must be present
+          # Final guard: after healing, macOS + Linux updater platforms must be present
           python3 - <<'PY'
           import json, os, pathlib, sys
           d=json.loads(pathlib.Path(f"{os.environ['RUNNER_TEMP']}/repair/latest.json").read_text())
-          need={"darwin-aarch64","darwin-x86_64"}
+          need={"darwin-aarch64","darwin-x86_64","linux-x86_64"}
           missing=need - set(d.get("platforms",{}))
           if missing:
               print(f"still missing {missing}", file=sys.stderr); sys.exit(1)
@@ -376,14 +555,14 @@ jobs:
           done
           test -f "$RUNNER_TEMP/beta-feed/latest.json"
 
-          # Guard against a single-arch feed (the 0.7.74-beta.1 bug): the feed
-          # must contain both darwin arches or the updater on the missing arch
-          # returns no update at all.
+          # Guard against a truncated feed (the 0.7.74-beta.1 bug): the feed
+          # must contain both darwin arches plus linux-x86_64 or the updater
+          # on the missing platform returns no update at all.
           python3 - <<'PY'
           import json, pathlib, sys
           data = json.loads(pathlib.Path(f"{__import__('os').environ['RUNNER_TEMP']}/beta-feed/latest.json").read_text())
           plats = set(data.get("platforms", {}).keys())
-          need = {"darwin-aarch64", "darwin-x86_64"}
+          need = {"darwin-aarch64", "darwin-x86_64", "linux-x86_64"}
           missing = need - plats
           if missing:
               print(f"beta feed latest.json missing platforms: {sorted(missing)}", file=sys.stderr)

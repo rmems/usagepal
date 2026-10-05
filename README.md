@@ -19,9 +19,12 @@ See your usage at a glance from your menu bar. No digging through dashboards.
 
 ## Download
 
-[**Download the latest release**](https://github.com/Halloweedev/usagepal/releases/latest) (macOS, Apple Silicon & Intel)
+[**Download the latest release**](https://github.com/Halloweedev/usagepal/releases/latest)
 
-The app auto-updates. Install once and you're set. If you want early builds, turn on **Get Beta Updates** in Settings and beta updates will appear in the normal in-app update button.
+- **macOS:** signed DMG for Apple Silicon and Intel
+- **Linux:** `.deb` (Debian/Ubuntu), `.rpm` (Fedora), and AppImage
+
+The app auto-updates from GitHub Releases (`latest.json`, including `linux-x86_64` once a Linux build is in that release). Install once and you're set. If you want early builds, turn on **Get Beta Updates** in Settings and beta updates will appear in the normal in-app update button.
 
 ## What It Does
 
@@ -44,7 +47,7 @@ UsagePal lives in your menu bar and shows you how much of your AI coding subscri
 - [**ClinePass**](docs/providers/cline-pass.md) / Session, weekly, monthly limits, balance, usage trend
 - [**Codex**](docs/providers/codex.md) / session, weekly, reviews, credits
 - [**Copilot**](docs/providers/copilot.md) / credits, extra usage, chat, completions
-- [**Cursor**](docs/providers/cursor.md) / credits, total usage, auto usage, API usage, on-demand, CLI auth
+- [**Cursor**](docs/providers/cursor.md) / credits, total usage, auto usage, API usage, on-demand (macOS, Linux, Windows Desktop sign-in)
 - [**Factory / Droid**](docs/providers/factory.md) / standard, premium tokens
 - [**Grok**](docs/providers/grok.md) / credits used, plan, pay-as-you-go cap
 - [**JetBrains AI Assistant**](docs/providers/jetbrains-ai-assistant.md) / quota, remaining
@@ -110,6 +113,8 @@ handled by Keylight, with license keys verified offline on your device.
 - Rust + Tauri v2 (backend)
 - QuickJS (`rquickjs`) for the plugin engine
 - [lutin](https://github.com/Halloweedev/lutin) for macOS DMG packaging, signing, and notarization
+
+On Linux, `tauri.linux.conf.json` builds `.deb`, `.rpm`, and AppImage. Fedora needs WebKitGTK and appindicator devel packages (for example `webkit2gtk4.1-devel` and `libappindicator-gtk3-devel`). Linux builds are not Apple-signed; updater signatures still use the existing Tauri key in CI. If AppImage bundling fails on strip or FUSE, set `NO_STRIP=1` and `APPIMAGE_EXTRACT_AND_RUN=1`.
 
 ```bash
 bun install

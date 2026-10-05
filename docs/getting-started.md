@@ -12,7 +12,8 @@ Settings.
 ## Providers
 
 Sign in to Claude, Cursor, Codex, and other supported tools in their own apps. UsagePal detects local
-provider data and shows the providers it can read.
+provider data and shows the providers it can read. On Linux, Cursor must be signed in in the Cursor
+desktop app (`~/.config/Cursor/.../state.vscdb`); CLI keychain login is macOS-only.
 
 To add or remove providers later, open **Settings → Plugins**. Drag providers to reorder the sidebar
 and the menu-bar tray order.

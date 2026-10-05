@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Version: 0.31 (2026-06-10)
+Version: 0.33 (2026-09-14)
 
 > UsagePal is a public-facing Tauri desktop app for tracking AI provider usage across plugins.
 
@@ -8,13 +8,16 @@ Version: 0.31 (2026-06-10)
 
 This is a Tauri/Rust fork of OpenUsage. The upstream Swift rewrite is **not** happening here — development stays on Tauri/Rust, and the goal is to ship **Windows and Linux alongside macOS, both as first-class targets**.
 
-Current state: macOS-only. The build matrix (`.github/workflows/publish.yml`) and bundle targets (`tauri.conf.json`) produce Mac builds only, and the app relies on macOS-native APIs that don't yet compile elsewhere.
+Current state: **Linux packages ship from CI** (`.deb`, `.rpm`, AppImage on `ubuntu-latest` in `.github/workflows/publish.yml`; overlay in `src-tauri/tauri.linux.conf.json`). macOS remains the signed DMG path. Windows NSIS/MSI is not in the matrix yet. The in-app updater reads `latest.json` and expects `darwin-aarch64`, `darwin-x86_64`, and `linux-x86_64`.
 
-Major work to get cross-platform (roughly largest-first):
-- **Tray dropdown panel** — the core click-tray-to-open-panel UX is built on macOS `NSPanel` (`src-tauri/src/panel.rs`, `tauri-nspanel`, objc2, `macos-private-api`). Rebuild it as a borderless, always-on-top, non-activating window with per-OS tray positioning and hide-on-blur. Biggest single item.
-- **Linux tray** — libayatana-appindicator often can't report the icon's screen position and some desktops only support a right-click menu; making the panel anchor well across desktop environments is the main Linux risk.
-- **Plugin credential/usage paths** — ~20 plugins hardcode macOS paths (`~/Library/Application Support/…`, `~/.config`, `~/.local/share`). Each provider needs its Windows (`%APPDATA%`/`%LOCALAPPDATA%`) and Linux equivalents added and verified. Keychain reads throw off-macOS; add Windows Credential Manager / Linux Secret Service for parity (file-fallback plugins degrade gracefully without it).
-- **Packaging & CI** — add `windows-latest` + `ubuntu-latest` to the build matrix (Linux needs webkit2gtk + appindicator system libs), and add `nsis`/`msi` and `deb`/`appimage` bundle targets. The updater, `latest.json`, and signing key are already cross-platform. Windows needs a code-signing certificate (~$200–400/yr, or Azure Trusted Signing) to avoid SmartScreen warnings; Linux needs none.
+Linux tray UX is a borderless always-on-top window (not macOS `NSPanel`). Icon-rect anchoring across desktops is still imperfect (libayatana-appindicator often cannot report position).
+
+Plugin credential/usage paths: **Cursor** reads Linux `~/.config/Cursor/.../state.vscdb` (and Windows `%APPDATA%` detect). Most other plugins still hardcode macOS paths. Keychain reads throw off-macOS; Secret Service / Credential Manager are not implemented — Cursor on Linux uses Desktop SQLite only.
+
+Remaining work (roughly largest-first):
+- **Linux tray** — better panel anchoring across desktop environments.
+- **Plugin credential/usage paths** — remaining providers need Windows and Linux equivalents. File-fallback plugins degrade without a keychain.
+- **Windows packaging & CI** — `windows-latest` plus `nsis`/`msi`. Windows needs a code-signing certificate (~$200–400/yr, or Azure Trusted Signing) to avoid SmartScreen warnings; Linux needs none.
 - **Small platform shims** — `open_notification_settings` and the dock/activation-policy code are macOS-only and need Windows/Linux equivalents or graceful no-ops. Notifications already have a non-macOS branch.
 
 ### Release hygiene
@@ -123,3 +126,16 @@ Use below list to store and recall user notes when asked to do so.
 - Cursor CSV pricing: strip leading `cursor-`, lowercase aggregation keys, map Auto → auto-cost rates, and Grok `*-high` / `*-high-fast` onto grok-4.5 / grok-4.5-fast — otherwise Today stays $0 while tokens still show.
 - OpenCode2 (`opencode2` CLI) stores new credentials in the SQLite table `credential` inside `~/.local/share/opencode/opencode.db` (JSON `{"type":"key","key":"..."}`), not `auth.json` — V1-style `auth.json` still holds older entries. Plugins reading only `auth.json` (opencode-go, synthetic) miss OpenCode2-only credentials; read the DB as a fallback.
 - Multi-account probes must never fall back to a machine-wide credential (keychain entry, default CLI login file). A stale registered account has to surface its own auth error — otherwise it silently renders another account's usage. Gate shared fallbacks behind the default (unregistered) case, e.g. a `USAGEPAL_MANAGED_ACCOUNT`-style env flag.
+
+## Learned User Preferences
+
+- Keep the rmems fork `main` fast-forwarded to Halloweedev `origin/main`; leave local checkout-checkpoint commits off PRs.
+- Ship Linux as packages/CI plus Cursor paths first; do not expand the same pass to remaining plugins' macOS paths, Secret Service, or Windows packaging.
+- Treat Claude Session/Weekly/Fable percents as Anthropic quotas and Today/30d dollars as local-log API-rate estimates, not a Max invoice or extra-usage spend.
+
+## Learned Workspace Facts
+
+- Git remotes: `origin` is Halloweedev/usagepal; `fork` is rmems/usagepal.
+- Cursor Linux auth lives in `~/.config/Cursor/User/globalStorage/state.vscdb`. Both the JS plugin and Rust `accounts.rs` snapshot must use that path; "Couldn't read the Cursor login" was the snapshot still using the macOS Library path. CLI/keychain fallback is macOS-only.
+- Claude on Linux uses `~/.claude/.credentials.json` and `~/.claude/projects`. Quota percents come from Anthropic `GET /api/oauth/usage`. Current assistant JSONL often lacks per-turn `costUSD`; dollars are ccusage Auto plus LiteLLM rates. Newer `type: cost-state` / `totalCostUSD` rows are ignored by vendored ccusage. Claude Today is UTC; the 1GB ccusage file cap can drop the oldest slice of Last 30 Days.
+- Do not drop the Tauri `macos-private-api` feature; it is required for the macOS tray panel.

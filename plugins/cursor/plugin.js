@@ -1,6 +1,10 @@
 (function () {
-  const STATE_DB =
-    "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+  const STATE_DB_LEAF = "/User/globalStorage/state.vscdb"
+  const STATE_DB_BASES = {
+    macos: "~/Library/Application Support/Cursor",
+    linux: "~/.config/Cursor",
+    windows: "~/AppData/Roaming/Cursor",
+  }
   const KEYCHAIN_ACCESS_TOKEN_SERVICE = "cursor-access-token"
   const KEYCHAIN_REFRESH_TOKEN_SERVICE = "cursor-refresh-token"
   const BASE_URL = "https://api2.cursor.sh"
@@ -12,7 +16,19 @@
   const STRIPE_URL = "https://cursor.com/api/auth/stripe"
   const CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
   const REFRESH_BUFFER_MS = 5 * 60 * 1000 // refresh 5 minutes before expiration
-  const LOGIN_HINT = "Sign in via Cursor app or run `agent login`."
+  const LOGIN_HINT_MACOS = "Sign in via Cursor app or run `agent login`."
+  const LOGIN_HINT_DESKTOP = "Sign in via the Cursor app."
+
+  function loginHint(ctx) {
+    const platform = ctx && ctx.app && ctx.app.platform
+    if (platform === "linux" || platform === "windows") return LOGIN_HINT_DESKTOP
+    return LOGIN_HINT_MACOS
+  }
+
+  function stateDbPath(platform) {
+    const base = STATE_DB_BASES[platform] || STATE_DB_BASES.macos
+    return base + STATE_DB_LEAF
+  }
 
   // UsagePal multi-account seam: when this env var points at a snapshot JSON
   // file, the plugin probes that managed account read-only instead of Cursor's
@@ -650,7 +666,7 @@
     try {
       const sql =
         "SELECT value FROM ItemTable WHERE key = '" + key + "' LIMIT 1;"
-      const json = ctx.host.sqlite.query(STATE_DB, sql)
+      const json = ctx.host.sqlite.query(stateDbPath(ctx.app.platform), sql)
       const rows = ctx.util.tryParseJson(json)
       if (!Array.isArray(rows)) {
         throw new Error("sqlite returned invalid json")
@@ -674,7 +690,7 @@
         "', '" +
         escaped +
         "');"
-      ctx.host.sqlite.exec(STATE_DB, sql)
+      ctx.host.sqlite.exec(stateDbPath(ctx.app.platform), sql)
       return true
     } catch (e) {
       ctx.host.log.warn("sqlite write failed for " + key + ": " + String(e))
@@ -879,9 +895,9 @@
         const shouldLogout = errorInfo && errorInfo.shouldLogout === true
         ctx.host.log.error("refresh failed: status=" + resp.status + " shouldLogout=" + shouldLogout)
         if (shouldLogout) {
-          throw "Session expired. " + LOGIN_HINT
+          throw "Session expired. " + loginHint(ctx)
         }
-        throw "Token expired. " + LOGIN_HINT
+        throw "Token expired. " + loginHint(ctx)
       }
 
       if (resp.status < 200 || resp.status >= 300) {
@@ -898,7 +914,7 @@
       // Check if server wants us to logout
       if (body.shouldLogout === true) {
         ctx.host.log.error("refresh response indicates shouldLogout=true")
-        throw "Session expired. " + LOGIN_HINT
+        throw "Session expired. " + loginHint(ctx)
       }
 
       const newAccessToken = body.access_token
@@ -1086,7 +1102,7 @@
 
     if (!accessToken && !refreshTokenValue) {
       ctx.host.log.error("probe failed: no access or refresh token in sqlite/keychain")
-      throw "Not logged in. " + LOGIN_HINT
+      throw "Not logged in. " + loginHint(ctx)
     }
 
     ctx.host.log.info("tokens loaded from " + authSource + ": accessToken=" + (accessToken ? "yes" : "no") + " refreshToken=" + (refreshTokenValue ? "yes" : "no"))
@@ -1108,7 +1124,7 @@
         accessToken = refreshed
       } else if (!accessToken) {
         ctx.host.log.error("refresh failed and no access token available")
-        throw "Not logged in. " + LOGIN_HINT
+        throw "Not logged in. " + loginHint(ctx)
       }
     }
 
@@ -1143,7 +1159,7 @@
 
     if (ctx.util.isAuthStatus(usageResp.status)) {
       ctx.host.log.error("usage returned auth error after all retries: status=" + usageResp.status)
-      throw "Token expired. " + LOGIN_HINT
+      throw "Token expired. " + loginHint(ctx)
     }
 
     if (usageResp.status < 200 || usageResp.status >= 300) {
@@ -1388,6 +1404,8 @@
       fmtModelCost,
       prettifyCursorModelName,
       pushCursorModelUsageLines,
+      stateDbPath,
+      loginHint,
     },
   }
 })()

@@ -74,7 +74,7 @@ git push origin beta/v0.7.69
 git push origin v0.7.69-beta.N
 ```
 
-`publish.yml` validates the version files match the tag, builds signed arm64 + x86_64 DMGs, generates release notes from the CHANGELOG section, and publishes the release as a **pre-release** (the tag has a `-` suffix).
+`publish.yml` validates the version files match the tag, builds signed arm64 + x86_64 DMGs **and** Linux `.deb` / `.rpm` / AppImage, generates release notes from the CHANGELOG section, and publishes the release as a **pre-release** (the tag has a `-` suffix). `latest.json` must include `darwin-aarch64`, `darwin-x86_64`, and `linux-x86_64`.
 
 ### 7. Verify (mandatory - never leave a draft)
 
