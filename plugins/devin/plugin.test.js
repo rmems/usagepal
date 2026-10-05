@@ -634,6 +634,89 @@ describe("devin plugin", () => {
     expect(ctx.host.sqlite.query).not.toHaveBeenCalled()
   })
 
+  it("on Windows, uses CLI credentials without needing sqlite3", async () => {
+    // Verified on clean Windows: no sqlite3 binary exists, so a host
+    // sqlite.query throws. CLI credentials must short-circuit before the
+    // app-state path ever reaches it.
+    const ctx = makeCtx()
+    ctx.app.platform = "windows"
+    ctx.host.sqlite.query.mockImplementation(() => {
+      throw new Error("sqlite3 exec failed: spawnSync sqlite3 ENOENT")
+    })
+    ctx.host.fs.writeText(WIN_CREDENTIALS_PATH, makeCredentialsToml({
+      apiKey: "devin-session-token$win",
+      apiServerUrl: DEFAULT_API_SERVER_URL,
+    }))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify(makeQuotaResponse({ planInfo: { planName: "Teams" } })),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Teams")
+    expect(ctx.host.sqlite.query).not.toHaveBeenCalled()
+  })
+
+  it("on Windows, degrades to the login hint when sqlite3 is unavailable", async () => {
+    // Verified on clean Windows: with no CLI credentials and no sqlite3 to
+    // read state.vscdb, both app installs warn and the probe throws the
+    // login hint instead of crashing.
+    const ctx = makeCtx()
+    ctx.app.platform = "windows"
+    ctx.host.sqlite.query.mockImplementation(() => {
+      throw new Error("sqlite3 exec failed: spawnSync sqlite3 ENOENT")
+    })
+
+    const plugin = await loadPlugin()
+
+    expect(() => plugin.probe(ctx)).toThrow(
+      "Run devin auth login or sign in to Devin and try again."
+    )
+    expect(ctx.host.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("failed to read Devin app auth")
+    )
+    expect(ctx.host.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("failed to read Devin - Next app auth")
+    )
+  })
+
+  it("on Windows, walks both app installs under %APPDATA% when CLI auth is absent", async () => {
+    const ctx = makeCtx()
+    ctx.app.platform = "windows"
+    ctx.host.sqlite.query.mockImplementation((db, sql) => {
+      expect(String(sql)).toContain("windsurfAuthStatus")
+      if (db === WIN_STATE_DB) return makeAuthStatus("devin-session-token$stable")
+      if (db === WIN_NEXT_STATE_DB) return makeAuthStatus("devin-session-token$next")
+      return "[]"
+    })
+    ctx.host.http.request.mockImplementation((request) => {
+      const body = JSON.parse(String(request.bodyText))
+      if (body.metadata.apiKey === "devin-session-token$stable") {
+        return { status: 401, bodyText: "{}" }
+      }
+      return {
+        status: 200,
+        bodyText: JSON.stringify(makeQuotaResponse({ planInfo: { planName: "Teams" } })),
+      }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Teams")
+    const queriedDbs = ctx.host.sqlite.query.mock.calls.map(([db]) => db)
+    expect(queriedDbs).toEqual([WIN_STATE_DB, WIN_NEXT_STATE_DB])
+    const triedKeys = ctx.host.http.request.mock.calls.map(
+      ([request]) => JSON.parse(String(request.bodyText)).metadata.apiKey
+    )
+    expect(triedKeys).toEqual(["devin-session-token$stable", "devin-session-token$next"])
+    expect(ctx.host.log.info).toHaveBeenCalledWith(
+      expect.stringContaining("source=Devin - Next app")
+    )
+  })
+
   it("renders ACU used progress for enterprise-shaped payloads", async () => {
     const ctx = makeCtx()
     writeCredentials(ctx)

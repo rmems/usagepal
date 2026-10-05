@@ -53,6 +53,14 @@ The value is JSON:
 { "apiKey": "devin-session-token$..." }
 ```
 
+## Windows Notes
+
+Validated end-to-end on Windows Server 2022 (10.0.20348) with Devin CLI v3000.11.3:
+
+- The Devin CLI (`irm https://static.devin.ai/cli/setup.ps1 | iex`) installs to `%LOCALAPPDATA%\devin\cli\bin` and writes `%APPDATA%\devin\credentials.toml` on `devin auth login` — the exact path the plugin reads.
+- CLI credentials and `DEVIN_API_KEY` work as-is.
+- App-state auth (`state.vscdb` for Devin / Devin - Next) goes through the host's `sqlite3` subprocess. Stock Windows has no `sqlite3` binary, so without one on `PATH` both app installs are skipped with a warning and the probe falls back to CLI/env auth (or the login hint). With `sqlite3` on `PATH` the multi-install walk works: a stale token in one install falls through to a valid token in the other.
+
 ## GetUserStatus
 
 ```http
